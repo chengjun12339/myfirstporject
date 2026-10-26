@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>参会人员登记</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f0f2f5;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+    .card {
+      width: 380px;
+      background: #fff;
+      border-radius: 12px;
+      padding: 28px 26px;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, .08);
+    }
+    h2 { margin: 0 0 22px; font-size: 20px; color: #1f2329; text-align: center; }
+    .field { margin-bottom: 16px; }
+    label { display: block; margin-bottom: 6px; font-size: 14px; color: #4e5969; }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 14px;
+      border: 1px solid #d9d9d9;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    input:focus { border-color: #1668dc; }
+    button {
+      width: 100%;
+      margin-top: 8px;
+      padding: 11px;
+      font-size: 15px;
+      color: #fff;
+      background: #1668dc;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    button:hover:not(:disabled) { background: #0e57c0; }
+    button:disabled { background: #9db8e0; cursor: not-allowed; }
+    #result {
+      margin-top: 16px;
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.6;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      display: none;
+    }
+    #result.ok  { display: block; background: #e8f8ee; color: #1a7f43; }
+    #result.err { display: block; background: #fdecec; color: #c0392b; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>参会人员登记</h2>
+
+    <div class="field">
+      <label for="name">姓名</label>
+      <input id="name" type="text" placeholder="请输入姓名">
+    </div>
+
+    <div class="field">
+      <label for="department">部门</label>
+      <input id="department" type="text" placeholder="请输入部门">
+    </div>
+
+    <div class="field">
+      <label for="identity">身份</label>
+      <input id="identity" type="text" placeholder="请输入身份">
+    </div>
+
+    <button id="submitBtn" type="button">提交</button>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const API_URL = 'http://10.124.3.227:3000/api/participant/register';
+
+    const $name = document.getElementById('name');
+    const $department = document.getElementById('department');
+    const $identity = document.getElementById('identity');
+    const $btn = document.getElementById('submitBtn');
+    const $result = document.getElementById('result');
+
+    /* ===== localStorage 身份存储工具（同源页面通用） ===== */
+    const Participant = {
+      KEY_ID:   'participant_id',    // UUID，主键
+      KEY_UID:  'participant_uid',   // 工号 P202610250012
+      KEY_INFO: 'participant_info',  // 整条 data（name/department/...）
+
+      save(data) {
+        if (!data) return;
+        if (data.id  != null) localStorage.setItem(this.KEY_ID,  String(data.id));
+        if (data.uid != null) localStorage.setItem(this.KEY_UID, String(data.uid));
+        localStorage.setItem(this.KEY_INFO, JSON.stringify(data));
+      },
+
+      getId()  { return localStorage.getItem(this.KEY_ID); },
+      getUid() { return localStorage.getItem(this.KEY_UID); },
+      getInfo() {
+        try { return JSON.parse(localStorage.getItem(this.KEY_INFO)); }
+        catch { return null; }
+      },
+
+      clear() {
+        localStorage.removeItem(this.KEY_ID);
+        localStorage.removeItem(this.KEY_UID);
+        localStorage.removeItem(this.KEY_INFO);
+      }
+    };
+
+    function showResult(text, ok) {
+      $result.textContent = text;
+      $result.className = ok ? 'ok' : 'err';
+    }
+
+    $btn.addEventListener('click', async () => {
+      const data = {
+        name: $name.value.trim(),
+        department: $department.value.trim(),
+        identity: $identity.value.trim()
+      };
+
+      if (!data.name || !data.department || !data.identity) {
+        showResult('请完整填写姓名、部门和身份', false);
+        return;
+      }
+
+      $btn.disabled = true;
+      $btn.textContent = '提交中...';
+
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const raw = await res.text();
+        let payload = null;
+        try { payload = JSON.parse(raw); } catch { payload = null; }
+
+        // 成功判断：HTTP 2xx + code === 0 + data.id 存在
+        const okHttp = res.ok;
+        const okBiz  = payload && payload.code === 0;
+        const info   = payload && payload.data;
+
+        if (okHttp && okBiz && info && info.id) {
+          // ✅ 写入 localStorage，同源的下一个页面可直接读取
+          Participant.save(info);
+
+          showResult(
+            '提交成功\n' +
+            '姓名：' + info.name + '\n' +
+            '工号：' + info.uid  + '\n' +
+            'ID：'  + info.id,
+            true
+          );
+        } else {
+          const msg = (payload && payload.message) || raw || '未知错误';
+          showResult('提交失败（HTTP ' + res.status + '）\n' + msg, false);
+        }
+      } catch (err) {
+        showResult(
+          '请求异常：' + err.message +
+          '\n\n可能原因：网络不可达、服务未启动，或被浏览器 CORS 策略拦截。',
+          false
+        );
+      } finally {
+        $btn.disabled = false;
+        $btn.textContent = '提交';
+      }
+    });
+  </script>
+</body>
+</html>

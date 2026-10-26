@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>抽奖结果 · 奖项展示</title>
+<style>
+  :root{
+    --card: rgba(255,255,255,.055);
+    --line: rgba(255,255,255,.10);
+    --text: #e9eefb;
+    --muted: #8d9bb5;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  body{
+    min-height:100vh;
+    padding:32px 20px 72px;
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:
+      radial-gradient(900px 500px at 12% -10%, rgba(84,120,255,.22), transparent 60%),
+      radial-gradient(820px 520px at 92% 0%, rgba(255,80,200,.14), transparent 55%),
+      #070a10;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{ max-width:1180px; margin:0 auto; }
+
+  /* ---------- 顶部 ---------- */
+  .hero{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; flex-wrap:wrap; margin-bottom:26px;
+  }
+  .hero h1{
+    font-size:clamp(22px,3vw,32px); letter-spacing:.5px;
+    background:linear-gradient(90deg,#ffd76e,#ff8ad4 55%,#7ab8ff);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .sub{ margin-top:8px; color:var(--muted); font-size:12.5px; }
+  .sub code{
+    background:rgba(255,255,255,.07); padding:2px 8px; border-radius:6px; color:#9fc0ff;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  .btn{
+    cursor:pointer; border:1px solid var(--line); background:rgba(255,255,255,.06);
+    color:var(--text); padding:10px 18px; border-radius:12px; font-size:14px;
+    transition:all .2s ease;
+  }
+  .btn:hover{ background:rgba(255,255,255,.14); transform:translateY(-1px); }
+  .btn:disabled{ opacity:.5; cursor:not-allowed; transform:none; }
+
+  /* ---------- 我的信息卡片 ---------- */
+  .me-card{
+    position:relative; overflow:hidden;
+    display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+    margin-bottom:26px; padding:20px 22px;
+    border-radius:20px; border:1px solid var(--line);
+    background:linear-gradient(135deg, rgba(122,162,255,.14), rgba(255,255,255,.04));
+    transition:border-color .3s ease, box-shadow .3s ease;
+  }
+  .me-card::before{
+    content:""; position:absolute; left:0; right:0; top:0; height:3px;
+    background:linear-gradient(90deg, transparent, #7aa2ff, transparent);
+  }
+  .me-card.win{
+    border-color:rgba(255,201,77,.5);
+    background:
+      radial-gradient(600px 240px at 100% 0%, rgba(255,201,77,.22), transparent 60%),
+      linear-gradient(135deg, rgba(255,201,77,.14), rgba(255,80,200,.06));
+    box-shadow:0 16px 40px -18px rgba(255,201,77,.35);
+  }
+  .me-card.win::before{
+    background:linear-gradient(90deg, transparent, #ffd76e, #ff8ad4, transparent);
+  }
+  .me-avatar{
+    width:64px; height:64px; flex:none; border-radius:50%;
+    display:grid; place-items:center;
+    font-size:26px; font-weight:800; color:#e9eefb;
+    background:rgba(255,255,255,.10);
+    border:2px solid rgba(255,255,255,.22);
+  }
+  .me-card.win .me-avatar{
+    background:linear-gradient(135deg, rgba(255,201,77,.45), rgba(255,80,200,.30));
+    border-color:rgba(255,201,77,.75);
+    box-shadow:0 0 24px rgba(255,201,77,.40);
+    color:#fff6d9;
+  }
+  .me-main{ flex:1; min-width:210px; }
+  .me-name{ font-size:20px; font-weight:700; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .me-name .uid{
+    font-size:11.5px; font-weight:400; color:var(--muted);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  .me-meta{
+    margin-top:6px; font-size:13px; color:var(--muted);
+    display:flex; gap:14px; flex-wrap:wrap;
+  }
+  .me-prizes{
+    margin-top:10px; display:flex; flex-wrap:wrap; gap:8px;
+  }
+  .me-prize{
+    padding:6px 12px; border-radius:999px; font-size:12.5px;
+    background:rgba(255,201,77,.14); border:1px solid rgba(255,201,77,.4);
+    color:#ffd76e;
+  }
+  .me-status{
+    flex:none; min-width:110px;
+    padding:12px 18px; border-radius:14px; text-align:center;
+    font-size:14px; font-weight:600; line-height:1.35;
+    background:rgba(255,255,255,.06); border:1px solid var(--line);
+    color:var(--muted);
+  }
+  .me-status.win{
+    background:linear-gradient(135deg, rgba(255,201,77,.24), rgba(255,80,200,.18));
+    border-color:rgba(255,201,77,.55);
+    color:#ffd76e;
+    box-shadow:0 0 20px rgba(255,201,77,.24);
+  }
+  .me-status small{ display:block; margin-top:3px; font-size:11.5px; font-weight:400; opacity:.85; }
+
+  /* ---------- 统计 ---------- */
+  .stats{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:14px; margin-bottom:28px;
+  }
+  .stat{
+    background:var(--card); border:1px solid var(--line);
+    border-radius:16px; padding:16px 18px;
+  }
+  .stat .num{
+    font-size:26px; font-weight:700; line-height:1.1;
+    background:linear-gradient(90deg,#8fb6ff,#ff9ae0);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .stat .label{ margin-top:7px; font-size:12.5px; color:var(--muted); letter-spacing:.5px; }
+
+  /* ---------- 奖项卡片 ---------- */
+  .prize-list{
+    display:grid; gap:20px;
+    grid-template-columns:repeat(auto-fit,minmax(330px,1fr));
+    align-items:start;
+  }
+  .prize-card{
+    --accent:#7aa2ff; --accent-soft:rgba(122,162,255,.16);
+    position:relative; overflow:hidden; padding:22px;
+    border-radius:20px; border:1px solid var(--line);
+    background:linear-gradient(165deg, rgba(255,255,255,.085), rgba(255,255,255,.02));
+    transition:transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+  }
+  .prize-card::before{
+    content:""; position:absolute; left:0; right:0; top:0; height:3px;
+    background:linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+  .prize-card:hover{
+    transform:translateY(-3px);
+    border-color:var(--accent);
+    box-shadow:0 20px 44px -20px rgba(0,0,0,.95);
+  }
+  .prize-card.super  { --accent:#ff6ad5; --accent-soft:rgba(255,106,213,.16); }
+  .prize-card.special{ --accent:#39e0c8; --accent-soft:rgba(57,224,200,.16); }
+  .prize-card.first  { --accent:#ffc94d; --accent-soft:rgba(255,201,77,.16); }
+  .prize-card.second { --accent:#b9c6dc; --accent-soft:rgba(185,198,220,.16); }
+  .prize-card.third  { --accent:#e08a4b; --accent-soft:rgba(224,138,75,.16); }
+
+  .prize-head{ display:flex; align-items:center; gap:14px; margin-bottom:18px; }
+  .prize-icon{
+    width:48px; height:48px; flex:none; border-radius:14px;
+    display:grid; place-items:center; font-size:24px;
+    background:var(--accent-soft); border:1px solid var(--accent-soft);
+  }
+  .prize-name{ font-size:19px; font-weight:700; color:var(--accent); }
+  .prize-meta{ margin-top:5px; font-size:12.5px; color:var(--muted); }
+
+  .people{ display:flex; flex-direction:column; gap:10px; }
+  .person{
+    display:flex; align-items:center; gap:12px;
+    padding:10px 12px; border-radius:14px;
+    background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.06);
+  }
+  .avatar{
+    width:36px; height:36px; flex:none; border-radius:50%;
+    display:grid; place-items:center; font-size:15px; font-weight:700;
+    color:var(--accent); background:var(--accent-soft); border:1px solid var(--accent);
+  }
+  .p-name{ font-size:14.5px; font-weight:600; }
+  .uid{
+    margin-left:8px; font-size:11.5px; font-weight:400; color:var(--muted);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  .p-time{ margin-top:3px; font-size:12px; color:var(--muted); }
+
+  /* ---------- 未中奖 ---------- */
+  .nowin{
+    margin-top:32px; padding:22px; border-radius:20px;
+    background:var(--card); border:1px solid var(--line);
+  }
+  .nowin h2{
+    font-size:15px; font-weight:600; color:var(--muted);
+    margin-bottom:14px; display:flex; align-items:center; gap:8px;
+  }
+  .chips{ display:flex; flex-wrap:wrap; gap:10px; }
+  .chip{
+    padding:7px 14px; border-radius:999px; font-size:13px; color:#b9c6dc;
+    background:rgba(255,255,255,.06); border:1px solid var(--line);
+  }
+
+  /* ---------- 加载 / 错误 ---------- */
+  .skeleton-list{
+    display:grid; gap:20px;
+    grid-template-columns:repeat(auto-fit,minmax(330px,1fr));
+  }
+  .skel{
+    height:180px; border-radius:20px;
+    background:linear-gradient(90deg, rgba(255,255,255,.05), rgba(255,255,255,.11), rgba(255,255,255,.05));
+    background-size:200% 100%;
+    animation:shimmer 1.3s infinite linear;
+  }
+  @keyframes shimmer{ 0%{background-position:200% 0;} 100%{background-position:-200% 0;} }
+
+  .error{
+    padding:18px 20px; border-radius:16px; font-size:14px; line-height:1.8;
+    color:#ffb3bd; background:rgba(255,90,110,.10); border:1px solid rgba(255,90,110,.35);
+  }
+  .error code{
+    background:rgba(0,0,0,.35); padding:2px 6px; border-radius:5px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; color:#ffd9df;
+  }
+  .empty{
+    padding:48px 20px; text-align:center; color:var(--muted); font-size:14px;
+    border:1px dashed var(--line); border-radius:20px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="hero">
+    <div>
+      <h1>🎊 抽奖结果公示</h1>
+      <p class="sub">数据接口：<code id="apiUrl"></code></p>
+    </div>
+    <button id="refreshBtn" class="btn">🔄 刷新数据</button>
+  </header>
+
+  <!-- 我的信息卡片（无 participant_id 时自动隐藏） -->
+  <div id="me" class="me-card" style="display:none"></div>
+
+  <div id="stats" class="stats"></div>
+  <div id="prizeContainer" class="prize-list"></div>
+  <div id="noWin" class="nowin" style="display:none"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ======== 配置：接口地址 & 鉴权 ========
+  const API_URL    = 'http://10.124.3.227:3000/api/admin/person/list';
+  const ME_API_URL = 'http://10.124.3.227:3000/api/participant/info'; // ← 新增
+  const AUTH_TOKEN = 'admin-secret';   // Bearer 令牌（仅用于拉全量列表）
+
+  const $stats     = document.getElementById('stats');
+  const $container = document.getElementById('prizeContainer');
+  const $noWin     = document.getElementById('noWin');
+  const $btn       = document.getElementById('refreshBtn');
+  const $me        = document.getElementById('me');
+  document.getElementById('apiUrl').textContent = API_URL;
+
+  // ======== 奖项主题映射 ========
+  const THEMES = [
+    [/超级|特等|至尊|终极大奖/, 'super'],
+    [/特别|special/i,           'special'],
+    [/一等|金奖/,               'first'],
+    [/二等|银奖/,               'second'],
+    [/三等|铜奖/,               'third'],
+  ];
+  const ICONS = { super:'👑', special:'✨', first:'🥇', second:'🥈', third:'🥉', default:'🏆' };
+
+  function themeOf(name) {
+    for (const [re, theme] of THEMES) if (re.test(String(name))) return theme;
+    return 'default';
+  }
+
+  // ======== 工具 ========
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, c => (
+      { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
+    ));
+  }
+  function fmtTime(t) {
+    if (!t) return '';
+    return String(t).replace('T', ' ').slice(0, 19);
+  }
+  function isWinner(p) {
+    return !!(p && p.isWin && Array.isArray(p.prizeName) && p.prizeName.length);
+  }
+
+  // ======== 按奖项分组 ========
+  function groupByPrize(list) {
+    const map = new Map();
+    for (const p of list) {
+      if (!isWinner(p)) continue;
+      p.prizeName.forEach((name, i) => {
+        const id = (Array.isArray(p.prizeId) && p.prizeId[i]) || name || 'unknown';
+        const time = (Array.isArray(p.prizeTime) && p.prizeTime[i]) || p.updateTime || '';
+        if (!map.has(id)) map.set(id, { id, name, people: [] });
+        map.get(id).people.push({
+          name: p.name, uid: p.uid, department: p.department,
+          identity: p.identity, time
+        });
+      });
+    }
+    return [...map.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  }
+
+  // ======== 渲染 ========
+  function render(list) {
+    const total    = list.length;
+    const winners  = list.filter(isWinner);
+    const losers   = list.filter(p => !isWinner(p));
+    const groups   = groupByPrize(list);
+    const rate     = total ? ((winners.length / total) * 100).toFixed(1) + '%' : '—';
+
+    $stats.innerHTML = [
+      [total,           '参与人数'],
+      [winners.length,  '中奖人数'],
+      [groups.length,   '奖项类别'],
+      [rate,            '中奖率'],
+    ].map(([num, label]) => `
+      <div class="stat">
+        <div class="num">${esc(num)}</div>
+        <div class="label">${esc(label)}</div>
+      </div>`).join('');
+
+    if (!groups.length) {
+      $container.innerHTML = '<div class="empty" style="grid-column:1/-1;">暂无中奖数据</div>';
+    } else {
+      $container.innerHTML = groups.map(g => {
+        const theme = themeOf(g.name);
+        return `
+          <section class="prize-card ${theme}">
+            <div class="prize-head">
+              <div class="prize-icon">${ICONS[theme] || ICONS.default}</div>
+              <div>
+                <div class="prize-name">${esc(g.name)}</div>
+                <div class="prize-meta">编号 ${esc(g.id)} · 共 ${g.people.length} 人</div>
+              </div>
+            </div>
+            <div class="people">
+              ${g.people.map(p => `
+                <div class="person">
+                  <div class="avatar">${esc((p.name || '?').slice(0, 1))}</div>
+                  <div>
+                    <div class="p-name">${esc(p.name)}<span class="uid">${esc(p.uid)}</span></div>
+                    <div class="p-time">🕒 ${esc(fmtTime(p.time))}</div>
+                  </div>
+                </div>`).join('')}
+            </div>
+          </section>`;
+      }).join('');
+    }
+
+    if (losers.length) {
+      $noWin.style.display = '';
+      $noWin.innerHTML = `
+        <h2>🍀 未中奖人员（${losers.length} 人）</h2>
+        <div class="chips">
+          ${losers.map(p => `<span class="chip">${esc(p.name)} · ${esc(p.uid)}</span>`).join('')}
+        </div>`;
+    } else {
+      $noWin.style.display = 'none';
+      $noWin.innerHTML = '';
+    }
+  }
+
+  // ======== 渲染我的信息 ========
+  function renderMe(p) {
+    const hasWin = !!(p.isWin && Array.isArray(p.prizes) && p.prizes.length);
+    $me.className = 'me-card' + (hasWin ? ' win' : '');
+    $me.style.display = '';
+
+    const initial = (p.name || '?').slice(0, 1);
+    const prizesHtml = hasWin
+      ? `<div class="me-prizes">${p.prizes.map(x => `
+          <span class="me-prize">🏆 ${esc(x.prizeName || '奖项')}${x.prizeTime ? ' · ' + esc(fmtTime(x.prizeTime)) : ''}</span>
+        `).join('')}</div>`
+      : '';
+
+    $me.innerHTML = `
+      <div class="me-avatar">${esc(initial)}</div>
+      <div class="me-main">
+        <div class="me-name">${esc(p.name || '')}<span class="uid">${esc(p.uid || '')}</span></div>
+        <div class="me-meta">
+          ${p.department ? `<span>🏢 ${esc(p.department)}</span>` : ''}
+          ${p.identity   ? `<span>🎫 ${esc(p.identity)}</span>`   : ''}
+          ${p.createTime ? `<span>📅 ${esc(p.createTime)}</span>` : ''}
+        </div>
+        ${prizesHtml}
+      </div>
+      <div class="me-status${hasWin ? ' win' : ''}">
+        ${hasWin
+          ? `🎉 恭喜中奖<small>共 ${p.prizeCount ?? p.prizes.length} 项</small>`
+          : `🍀 未中奖`}
+      </div>
+    `;
+  }
+
+  // ======== 请求：我的信息 ========
+  async function loadMe() {
+    const pid = localStorage.getItem('participant_id');
+    if (!pid) {
+      // 没登记过 → 隐藏（兼容大屏模式）
+      $me.style.display = 'none';
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${ME_API_URL}?id=${encodeURIComponent(pid)}`,
+        { cache: 'no-store', headers: { 'Accept': 'application/json' } }
+      );
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json || json.code !== 0 || !json.data) {
+        // 404：本地 id 后端已不存在（服务重启/数据丢失），清掉
+        if (res.status === 404 || (json && json.code === 40400)) {
+          localStorage.removeItem('participant_id');
+        }
+        throw new Error((json && json.message) || ('HTTP ' + res.status));
+      }
+
+      renderMe(json.data);
+    } catch (err) {
+      console.warn('[me] 加载个人信息失败:', err);
+      $me.style.display = 'none';
+    }
+  }
+
+  // ======== 状态视图 ========
+  function showSkeleton() {
+    $stats.innerHTML = '';
+    $noWin.style.display = 'none';
+    $container.className = 'skeleton-list';
+    $container.innerHTML = Array.from({ length: 4 }, () => '<div class="skel"></div>').join('');
+  }
+
+  function showError(err) {
+    $container.className = 'prize-list';
+    $container.innerHTML = `
+      <div class="error" style="grid-column:1/-1;">
+        <strong>❌ 数据加载失败</strong><br>
+        原因：${esc(err && err.message ? err.message : err)}<br>
+        请检查：<br>
+        1. 后端服务是否已启动，接口 <code>${esc(API_URL)}</code> 是否可访问；<br>
+        2. 鉴权令牌是否正确（当前 Bearer <code>${esc(AUTH_TOKEN)}</code>），若为 401/403 请确认令牌；<br>
+        3. 是否被浏览器跨域（CORS）拦截 —— 需要在后端响应头加上
+           <code>Access-Control-Allow-Origin: *</code>（或指定来源），
+           并允许 <code>Authorization</code> 请求头
+           （<code>Access-Control-Allow-Headers: Authorization, Content-Type</code>）；<br>
+        4. 网络 / 内网环境是否连通。
+      </div>`;
+  }
+
+  // ======== 请求数据 ========
+  async function load() {
+    $btn.disabled = true;
+    $btn.textContent = '⏳ 加载中…';
+    showSkeleton();
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer ' + AUTH_TOKEN,
+        },
+        cache: 'no-store',
+      });
+
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(`鉴权失败（HTTP ${res.status}），请检查 Bearer 令牌是否为 admin-secret`);
+      }
+      if (!res.ok) throw new Error(`接口返回 HTTP ${res.status} ${res.statusText}`);
+
+      const json = await res.json();
+      const list = Array.isArray(json) ? json : (Array.isArray(json && json.data) ? json.data : null);
+      if (!list) throw new Error('返回数据格式不正确，未找到 data 数组');
+
+      $container.className = 'prize-list';
+      render(list);
+    } catch (err) {
+      showError(err);
+    } finally {
+      $btn.disabled = false;
+      $btn.textContent = '🔄 刷新数据';
+    }
+  }
+
+  // 刷新按钮：同时刷新列表 + 我的信息
+  $btn.addEventListener('click', async () => {
+    await load();
+    await loadMe();
+  });
+
+  // 首次加载
+  loadMe();
+  load();
+})();
+</script>
+</body>
+</html>
